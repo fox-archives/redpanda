@@ -3,35 +3,17 @@ package store
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
-
-	"github.com/hyperupcall/redpanda/server/util"
 )
 
-func initializeStore(store *Store) error {
-	home := os.Getenv("HOME") // TODO
-	dataFile := filepath.Join(home, ".config", "redpanda", "data.json")
-	data, err := ioutil.ReadFile(dataFile)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil
-		} else {
-			return err
-		}
-	}
-
-	err = json.Unmarshal(data, store)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func New() Store {
-	var store Store
+	store := Store{
+		Transactions: []Transaction{},
+	}
 	if err := initializeStore(&store); err != nil {
 		log.Fatalln(err)
 	}
@@ -40,33 +22,88 @@ func New() Store {
 }
 
 type Store struct {
-	Repos []string `json:"repos"`
+	Transactions []Transaction `json:"transactions"`
 }
 
-func (s *Store) RepoList() []string {
-	return s.Repos
-}
-
-func (s *Store) RepoAdd(repos []string) error {
-	for _, repo := range repos {
-		c, _ := util.Contains(s.Repos, repo)
-		if !c {
-			s.Repos = append(s.Repos, repos...)
+func (s *Store) TransactionGet(name string) (Transaction, error) {
+	for _, t := range s.Transactions {
+		if t.Name == name {
+			return t, nil
 		}
+	}
+
+	return Transaction{}, fmt.Errorf("A transaction with the specified name does not exist")
+}
+
+func (s *Store) TransactionAdd(name string) error {
+	for _, t := range s.Transactions {
+		if t.Name == name {
+			return fmt.Errorf("A transaction with the specified name already exists")
+		}
+	}
+
+	s.Transactions = append(s.Transactions, Transaction{
+		Name:  name,
+		Repos: []Repo{},
+	})
+
+	return s.Save()
+}
+
+func (s *Store) TransactionRemove(name string) error {
+	idx := -1
+
+	for i, t := range s.Transactions {
+		if t.Name == name {
+			idx = i
+			break
+		}
+	}
+
+	if idx == -1 {
+		return fmt.Errorf("A transaction with the specified name does not exist")
+	}
+
+	s.Transactions = append(s.Transactions[:idx], s.Transactions[idx+1:]...)
+
+	return s.Save()
+}
+
+func (s *Store) TransactionRename(oldName string, newName string) error {
+	success := false
+
+	for i, t := range s.Transactions {
+		if t.Name == oldName {
+			s.Transactions[i].Name = newName
+			success = true
+			break
+		}
+	}
+
+	if !success {
+		return fmt.Errorf("A transaction with the specified name does not exist")
 	}
 
 	return s.Save()
 }
 
-func (s *Store) RepoRemove(repos []string) error {
-	for _, repo := range repos {
-		c, i := util.Contains(s.Repos, repo)
-		if c {
-			s.Repos = append(s.Repos[:i], s.Repos[i+1:]...)
-		}
-	}
+func (s *Store) TransactionList() []Transaction {
+	return s.Transactions
+}
 
-	return s.Save()
+type Transaction struct {
+	Name  string `json:"name"`
+	Repos []Repo `json:"repos"`
+}
+
+func (s *Store) ReposAdd(name string)    {}
+func (s *Store) ReposRemove(name string) {}
+func (s *Store) ReposList()              {}
+
+type Repo struct {
+	URL    string
+	Dir    string
+	Status string
 }
 
 func (s *Store) Save() error {
@@ -86,5 +123,23 @@ func (s *Store) Save() error {
 		return err
 	}
 
+	return nil
+}
+func initializeStore(store *Store) error {
+	home := os.Getenv("HOME") // TODO
+	dataFile := filepath.Join(home, ".config", "redpanda", "data.json")
+	content, err := ioutil.ReadFile(dataFile)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		} else {
+			return err
+		}
+	}
+
+	err = json.Unmarshal(content, store)
+	if err != nil {
+		return err
+	}
 	return nil
 }
