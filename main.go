@@ -5,13 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
-	"github.com/gin-gonic/gin"
 	"github.com/google/go-github/github"
 	git "github.com/libgit2/git2go/v33"
 	cli "github.com/urfave/cli/v2"
@@ -25,7 +23,7 @@ func handle(err error) {
 }
 
 func startServer() {
-	key := "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"
+	key := "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" // TODO
 
 	ctx := context.Background()
 	ts := oauth2.StaticTokenSource(
@@ -49,13 +47,6 @@ func startServer() {
 		fmt.Println()
 	}
 
-	r := gin.Default()
-	r.GET("/ping", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"message": "pong",
-		})
-	})
-	r.Run()
 }
 
 func main() {
@@ -260,5 +251,4 @@ func main() {
 		log.Fatal(err)
 		os.Exit(1)
 	}
-
 }

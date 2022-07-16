@@ -1,11 +1,10 @@
-# datamod
+# redpanda
 
-Modify data across multiple projects
-
-For data, but especially code
+Cross-repository refactoring
 
 ## Transformers
 
 - String replacement
 - Regex
+- Language-specific AST parsers / transform plugin thingies
 - [Comby](https://comby.dev)
