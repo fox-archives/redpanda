@@ -7,5 +7,5 @@ import (
 
 func main() {
 	store := store.New()
-	serve.Serve(store)
+	serve.Serve(&store)
 }
