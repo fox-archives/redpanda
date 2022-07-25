@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/hyperupcall/redpanda/server/store"
 )
 
@@ -59,7 +60,7 @@ func (m *Manager) Initialize() error {
 		}
 	}
 
-	return nil
+	return m.store.Save()
 }
 
 func (m *Manager) IdempotentApply(transactionName string) error {
@@ -77,11 +78,31 @@ func (m *Manager) IdempotentApply(transactionName string) error {
 			fmt.Printf("Running transaction: %s\n", transaction.Name)
 			fmt.Printf("  repos: %+v\n", transaction.Repos)
 			for _, repo := range transaction.Repos {
+				if repo.Dir == "" {
+					fmt.Printf("EMPTY FOR %s: %s\n", repo.Name, repo.Dir)
+				}
 				if err := os.Chdir(repo.Dir); err != nil {
+					fmt.Println(repo.Dir)
 					return err
 				}
 
-				cmd := exec.Command("git", "-C", repo.Dir, "reset", "--hard", "HEAD")
+				cmd := exec.Command("git", "fetch")
+				if err := cmd.Run(); err != nil {
+					return err
+				}
+
+				cmd = exec.Command("git", "merge-base", "origin", "HEAD")
+				mergeBase, err := cmd.Output()
+				if err != nil {
+					return err
+				}
+
+				cmd = exec.Command("git", "-C", repo.Dir, "reset", "--hard", strings.TrimSpace(string(mergeBase)))
+				if err := cmd.Run(); err != nil {
+					return err
+				}
+
+				cmd = exec.Command("git", "pull", "origin")
 				if err := cmd.Run(); err != nil {
 					return err
 				}
@@ -119,7 +140,50 @@ func (m *Manager) IdempotentApply(transactionName string) error {
 	return nil
 }
 
-func (m *Manager) Diff(transactionName string) error {
+func (m *Manager) Diff(transactionName string) (string, error) {
+	found := false
+	contents := ""
+
+	for _, transaction := range m.store.Transactions {
+		if transaction.Name == transactionName {
+			found = true
+
+			originalDir, err := os.Getwd()
+			if err != nil {
+				return "", err
+			}
+
+			fmt.Printf("----------- DIFFFFF FORRRR: %s\n", transaction.Name)
+			for _, repo := range transaction.Repos {
+				if err := os.Chdir(repo.Dir); err != nil {
+					return "", err
+				}
+
+				cmd := exec.Command("git", "diff", "--staged")
+				content, err := cmd.CombinedOutput()
+				if err != nil {
+					return "", err
+				}
+
+				contents = contents + string(content)
+				fmt.Println(string(content))
+			}
+
+			if err = os.Chdir(originalDir); err != nil {
+				return "", err
+			}
+
+		}
+	}
+
+	if !found {
+		return "", fmt.Errorf("Failed to find a transaction with that particular name")
+	}
+
+	return contents, nil
+}
+
+func forEachRepo(m Manager, transactionName string, fn func(repo store.Repo) error) error {
 	found := false
 
 	for _, transaction := range m.store.Transactions {
@@ -131,17 +195,14 @@ func (m *Manager) Diff(transactionName string) error {
 				return err
 			}
 
-			fmt.Printf("----------- DIFFFFF FORRRR: %s\n", transaction.Name)
 			for _, repo := range transaction.Repos {
 				if err := os.Chdir(repo.Dir); err != nil {
 					return err
 				}
 
-				cmd := exec.Command("git", "diff", "--staged")
-				cmd.Stdin = os.Stdin
-				cmd.Stdout = os.Stdout
-				cmd.Stderr = os.Stderr
-				cmd.Start()
+				if err = fn(repo); err != nil {
+					return err
+				}
 			}
 
 			if err = os.Chdir(originalDir); err != nil {
@@ -156,4 +217,50 @@ func (m *Manager) Diff(transactionName string) error {
 	}
 
 	return nil
+}
+
+func (m *Manager) Commit(transactionName string, commitMessage string) (string, error) {
+	id := uuid.NewString()
+
+	os.Setenv("GIT_COMMITTER_NAME", "Captain Woofers")
+	os.Setenv("GIT_COMMITTER_EMAIL", "99463792+captain-woofers@users.noreply.github.com")
+
+	err := forEachRepo(*m, transactionName, func(repo store.Repo) error {
+		message := commitMessage + `
+
+Transaction-Id: ` + id + ``
+		fmt.Println(message)
+		cmd := exec.Command("git", "commit", "--allow-empty", "-m", message, "--author", "Captain Woofers <99463792+captain-woofers@users.noreply.github.com>", "--gpg-sign=0xF1BBE0168CC63A97")
+		content, err := cmd.CombinedOutput()
+		fmt.Println(string(content))
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		return "{}", err
+	}
+
+	return "{}", nil
+}
+
+func (m *Manager) Push(transactionName string) (string, error) {
+	err := forEachRepo(*m, transactionName, func(repo store.Repo) error {
+
+		cmd := exec.Command("git", "push")
+		content, err := cmd.CombinedOutput()
+		fmt.Println(string(content))
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		return "{}", err
+	}
+
+	return "{}", nil
 }

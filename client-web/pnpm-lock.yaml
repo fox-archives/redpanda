@@ -12,6 +12,7 @@ specifiers:
   eslint: ^8.5.0
   eslint-plugin-vue: ^9.0.0
   jsdom: ^20.0.0
+  lodash: ^4.17.21
   npm-run-all: ^4.1.5
   pinia: ^2.0.14
   prettier: ^2.5.1
@@ -23,6 +24,7 @@ specifiers:
   vue-tsc: ^0.38.1
 
 dependencies:
+  lodash: 4.17.21
   pinia: 2.0.14_j6bzmzd4ujpabbp5objtwxyjp4
   vue: 3.2.37
   vue-router: 4.0.16_vue@3.2.37
@@ -1708,7 +1710,6 @@ packages:
 
   /lodash/4.17.21:
     resolution: {integrity: sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==}
-    dev: true
 
   /loupe/2.3.4:
     resolution: {integrity: sha512-OvKfgCC2Ndby6aSTREl5aCCPTNIzlDfQZvZxNUrBrihDhL3xcrYegTblhmEiCrg2kKQz4XsFIaemE5BF4ybSaQ==}
