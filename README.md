@@ -6,8 +6,7 @@ STATUS: IN DEVELOPMENT
 
 ## Preview
 
-As you can see, it is bare bones. It makes transactions like [this one](https://github.com/hyperupcall/salamis/commit/064b6f544e1fa3c6fd6a034ada83b22bc5ebc3ee)
-
+As you can see, it is bare bones. It makes transactions like [this one](https://github.com/hyperupcall/salamis/commit/064b6f544e1fa3c6fd6a034ada83b22bc5ebc3ee). It logs a list of all transactions at [hyperupcall/transactions](https://github.com/hyperupcall/transactions)
 ![Preview of Red Panda](./assets/screenshot.png)
 
 ## Concepts
