@@ -1,107 +1,100 @@
 package serve
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/hyperupcall/redpanda/server/manager"
+	guardian "github.com/hyperupcall/redpanda/server/guardian"
 	"github.com/hyperupcall/redpanda/server/store"
 )
 
+func hasError(ctx *gin.Context, err error) bool {
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return true
+	}
+
+	return false
+}
+
+func returnSuccess(ctx *gin.Context) {
+	ctx.JSON(http.StatusOK, gin.H{"success": true})
+}
+
 func Serve(store *store.Store) {
 	r := gin.Default()
-	m := manager.New(store)
+	g := guardian.New(store)
 
-	r.POST("/api/step/idempotent-apply", func(c *gin.Context) {
+	r.POST("/api/action/apply", func(ctx *gin.Context) {
 		type Schema struct {
 			Transaction string `json:"transaction" binding:"required"`
 		}
 		var data Schema
-		if err := c.ShouldBindJSON(&data); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		if err := ctx.BindJSON(&data); err != nil {
 			return
 		}
 
-		err := m.Initialize()
-		if err != nil {
-			c.JSON(http.StatusOK, gin.H{"error": err.Error()})
+		content, err := g.ActionApply(data.Transaction)
+		if hasError(ctx, err) {
 			return
 		}
 
-		err = m.IdempotentApply(data.Transaction)
-		if err != nil {
-			c.JSON(http.StatusOK, gin.H{"error": err.Error()})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{"success": true})
+		ctx.JSON(http.StatusOK, gin.H{"contents": content})
 	})
 
-	r.POST("/api/step/diff", func(c *gin.Context) {
+	r.POST("/api/action/refresh", func(ctx *gin.Context) {
 		type Schema struct {
 			Transaction string `json:"transaction" binding:"required"`
 		}
 		var data Schema
-		if err := c.ShouldBindJSON(&data); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		if err := ctx.BindJSON(&data); err != nil {
 			return
 		}
 
-		result, err := m.Diff(data.Transaction)
-		if err != nil {
-			c.JSON(http.StatusOK, gin.H{"error": err.Error()})
+		content, err := g.ActionRefresh(data.Transaction)
+		if hasError(ctx, err) {
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{"contents": result})
+		ctx.JSON(http.StatusOK, gin.H{"contents": content})
 	})
 
-	r.POST("/api/step/commit", func(c *gin.Context) {
+	r.POST("/api/action/commit", func(ctx *gin.Context) {
+
 		type Schema struct {
 			Transaction   string `json:"transaction" binding:"required"`
 			CommitMessage string `json:commitMessage" binding:"required"`
 		}
 		var data Schema
-
-		if err := c.ShouldBindJSON(&data); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		if err := ctx.BindJSON(&data); err != nil {
 			return
 		}
 
-		content, err := m.Commit(data.Transaction, data.CommitMessage)
-		if err != nil {
-			c.JSON(http.StatusOK, gin.H{"error": err.Error()})
+		err := g.ActionCommit(data.Transaction)
+		if hasError(ctx, err) {
 			return
 		}
-		fmt.Println(content)
 
-		c.Status(http.StatusOK)
-		return
+		returnSuccess(ctx)
 	})
 
-	r.POST("/api/step/push", func(c *gin.Context) {
+	r.POST("/api/action/push", func(ctx *gin.Context) {
 		type Schema struct {
 			Transaction   string `json:"transaction" binding:"required"`
 			CommitMessage string `json:commitMessage" binding:"required"`
 		}
 		var data Schema
-
-		if err := c.ShouldBindJSON(&data); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		if err := ctx.BindJSON(&data); err != nil {
 			return
 		}
 
-		content, err := m.Push(data.Transaction)
-		if err != nil {
-			c.JSON(http.StatusOK, gin.H{"error": err.Error()})
+		err := g.ActionPush(data.Transaction)
+		if hasError(ctx, err) {
 			return
 		}
-		fmt.Println(content)
 
-		c.Status(http.StatusOK)
-		return
+		returnSuccess(ctx)
 	})
 
 	r.POST("/api/transformer/add", func(c *gin.Context) {

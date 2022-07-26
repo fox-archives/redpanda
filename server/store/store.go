@@ -249,10 +249,10 @@ func (s *Store) RepoRemove(transactionName string, repoName string) error {
 }
 
 type Repo struct {
-	Name   string
-	URL    string
-	Dir    string
-	Status string
+	Name   string `json:"name"`
+	URL    string `json:"url"`
+	Dir    string `json:"dir"`
+	Status string `json:"status"`
 }
 
 func (s *Store) Save() error {
