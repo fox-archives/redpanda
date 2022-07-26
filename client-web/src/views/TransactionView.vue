@@ -107,28 +107,34 @@ export default defineComponent({
 			if (commitMessage.value.length < 4) {
 				throw new Error('Commit message too small')
 			}
-			await fetch('/api/step/commit', {
-				method: 'POST',
-				body: JSON.stringify({
+			const [ok, data] = await fetchWrapper(
+				'/api/action/commit',
+				{
 					transaction: transaction.value.name,
 					commitMessage: commitMessage.value,
-				}),
-			}).then(async (res) => {
-				const text = await res.text()
-				console.log(text)
-			})
+				},
+				{
+					timeout: 30,
+				},
+			)
+			if (!ok) throw data
+
+			console.log(data)
 		}
 
 		async function actionPush() {
-			await fetch('/api/step/push', {
-				method: 'POST',
-				body: JSON.stringify({
+			const [ok, data] = await fetchWrapper(
+				'/api/action/push',
+				{
 					transaction: transaction.value.name,
-				}),
-			}).then(async (res) => {
-				const text = await res.text()
-				console.log(text)
-			})
+				},
+				{
+					timeout: 30,
+				},
+			)
+			if (!ok) throw data
+
+			console.log(data)
 		}
 
 		// util

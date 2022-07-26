@@ -226,3 +226,4 @@ Trace: git fetch: hyperupcall/cactus
 Trace: git merge-base: hyperupcall/cactus
 Trace: git reset: hyperupcall/cactus
 Trace: git pull: hyperupcall/cactus
+Trace: transaction-repo: Adding

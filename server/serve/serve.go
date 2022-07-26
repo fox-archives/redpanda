@@ -1,6 +1,7 @@
 package serve
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 
@@ -71,28 +72,29 @@ func Serve(store *store.Store) {
 			return
 		}
 
-		err := g.ActionCommit(data.Transaction)
+		content, err := g.ActionCommit(data.Transaction, data.CommitMessage)
 		if hasError(ctx, err) {
 			return
 		}
+		fmt.Println(content)
 
 		returnSuccess(ctx)
 	})
 
 	r.POST("/api/action/push", func(ctx *gin.Context) {
 		type Schema struct {
-			Transaction   string `json:"transaction" binding:"required"`
-			CommitMessage string `json:commitMessage" binding:"required"`
+			Transaction string `json:"transaction" binding:"required"`
 		}
 		var data Schema
 		if err := ctx.BindJSON(&data); err != nil {
 			return
 		}
 
-		err := g.ActionPush(data.Transaction)
+		result, err := g.ActionPush(data.Transaction)
 		if hasError(ctx, err) {
 			return
 		}
+		fmt.Println(result)
 
 		returnSuccess(ctx)
 	})

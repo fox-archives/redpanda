@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -8,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hyperupcall/redpanda/server/logger"
@@ -23,7 +25,7 @@ func New(store *store.Store) Guardian {
 	}
 }
 
-func forEachRepo(m Guardian, transactionName string, fn func(repo store.Repo) error) error {
+func forEachRepo(m *Guardian, transactionName string, fn func(repo store.Repo) error) error {
 	found := false
 
 	for _, transaction := range m.store.Transactions {
@@ -305,20 +307,7 @@ func (g *Guardian) ActionRefresh(transactionName string) (string, error) {
 	return gitDiff(g, transactionName)
 }
 
-func (m *Guardian) ActionCommit(transactionName string) error {
-	return nil
-}
-
-func (m *Guardian) ActionPush(transactionName string) error {
-	return nil
-}
-
-func (m *Guardian) Setup(transactionName string) error {
-
-	return nil
-}
-
-func (m *Guardian) Commit(transactionName string, commitMessage string) (string, error) {
+func (g *Guardian) ActionCommit(transactionName string, commitMessage string) (string, error) {
 	transactionRepoDir := filepath.Join(os.Getenv("HOME"), ".local", "share", "redpanda", "transaction-repo")
 
 	err, isCloned := RepoIsCloned(transactionRepoDir)
@@ -326,7 +315,7 @@ func (m *Guardian) Commit(transactionName string, commitMessage string) (string,
 		return "", err
 	}
 	if !isCloned {
-		cmd := exec.Command("git", "clone", "https://github.com/hyperupcall/transactions", transactionRepoDir)
+		cmd := exec.Command("git", "clone", "git@github.com:hyperupcall/transactions", transactionRepoDir)
 		if err := cmd.Run(); err != nil {
 			return "", err
 		}
@@ -344,11 +333,12 @@ func (m *Guardian) Commit(transactionName string, commitMessage string) (string,
 	os.Setenv("GIT_COMMITTER_NAME", "Captain Woofers")
 	os.Setenv("GIT_COMMITTER_EMAIL", "99463792+captain-woofers@users.noreply.github.com")
 
-	if err := forEachRepo(*m, transactionName, func(repo store.Repo) error {
-		message := commitMessage + `
+	message := commitMessage + `
 
 Transaction-Id: ` + id + ``
-		fmt.Println(message)
+
+	if err := forEachRepo(g, transactionName, func(repo store.Repo) error {
+
 		cmd := exec.Command("git", "commit", "--allow-empty", "-m", message, "--author", config.gitAuthor, "--gpg-sign="+config.gpgId)
 		content, err := cmd.CombinedOutput()
 		fmt.Println(string(content))
@@ -362,14 +352,52 @@ Transaction-Id: ` + id + ``
 	}
 
 	// Now, make a record in transactions
-	transactionMessage := ""
-	cmd := exec.Command("git", "-C", transactionRepoDir, "add", "-m", transactionMessage)
+	dataFile := filepath.Join(transactionRepoDir, "by-id", id+".json")
+	if err := os.MkdirAll(filepath.Dir(dataFile), 0o755); err != nil {
+		return "", err
+	}
+	date := time.Now().UTC().Unix()
+
+	type DataFile struct {
+		Id      string   `json:"id"`
+		Date    int64    `json:"date"`
+		Repos   []string `json:"repos"`
+		Message string   `json:"message"`
+	}
+	t, err := g.store.TransactionGet(transactionName)
+	if err != nil {
+		return "", err
+	}
+	data := DataFile{
+		Id:   id,
+		Date: date,
+		Repos: func() []string {
+			var arr []string
+			for _, obj := range t.Repos {
+				arr = append(arr, obj.Name)
+			}
+			return arr
+		}(),
+		Message: message,
+	}
+	dataText, err := json.Marshal(data)
+	if err != nil {
+		return "", err
+	}
+
+	if err := ioutil.WriteFile(dataFile, []byte(dataText), 0o644); err != nil {
+		return "", err
+	}
+
+	g.logger.Trace("transaction-repo: Adding")
+	cmd := exec.Command("git", "-C", transactionRepoDir, "add", dataFile)
 	if err := cmd.Run(); err != nil {
 		return "", err
 	}
 
-	transactionMessage := ""
-	cmd := exec.Command("git", "-C", transactionRepoDir, "commit", "-m", transactionMessage)
+	transactionMessage := message
+
+	cmd = exec.Command("git", "-C", transactionRepoDir, "commit", "-m", transactionMessage)
 	if err := cmd.Run(); err != nil {
 		return "", err
 	}
@@ -377,8 +405,8 @@ Transaction-Id: ` + id + ``
 	return "{}", nil
 }
 
-func (m *Guardian) Push(transactionName string) (string, error) {
-	err := forEachRepo(*m, transactionName, func(repo store.Repo) error {
+func (m *Guardian) ActionPush(transactionName string) (string, error) {
+	err := forEachRepo(m, transactionName, func(repo store.Repo) error {
 		cmd := exec.Command("git", "push", "origin")
 		content, err := cmd.CombinedOutput()
 		fmt.Println(string(content))
