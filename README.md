@@ -21,3 +21,10 @@ As you can see, it is bare bones. It makes transactions like [this one](https://
 - Regex
 - Language-specific AST parsers / transform plugin thingies
 - [Comby](https://comby.dev)
+
+## Roadmap
+
+- Add RedPanda-like prefix to commits (ex RedPanda-Transaction-Id)
+- add Transaction-Url: (and link to commit in transactiosn repo)
+- log git sha hashes to transactions repo
+- save and presist commit message
